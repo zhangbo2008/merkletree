@@ -345,6 +345,12 @@ var table = []struct {
 	},
 }
 
+
+
+
+
+
+
 func TestNewTree(t *testing.T) {
 	for i := 0; i < len(table); i++ {
 		if !table[i].defaultHashStrategy {

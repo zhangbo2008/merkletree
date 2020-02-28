@@ -1,6 +1,22 @@
 // Copyright 2017 Cameron Bergoon
 // Licensed under the MIT License, see LICENCE file for details.
 
+
+
+
+/* 在分布式中用来校验传过来的数据是否经过中间人修改了..
+
+这里面基本讲的挺细了.
+https://blog.csdn.net/pansaky/article/details/90239992
+
+
+但是这个项目没有实现添加删除呢???
+是不是真实情况不太需要添加删除,因为文件一般都封装死了.需要校验即可.
+
+其实添加删除可以在红黑树上再封装一下hash算法即可.不难实现.
+
+
+*/
 package merkletree
 
 import (
@@ -20,9 +36,9 @@ type Content interface {
 
 //MerkleTree is the container for the tree. It holds a pointer to the root of the tree,
 //a list of pointers to the leaf nodes, and the merkle root.
-type MerkleTree struct {
-	Root         *Node
-	merkleRoot   []byte
+type MerkleTree struct {  //这个是代表树本身.
+	Root         *Node           //这个是根节点
+	merkleRoot   []byte   //这个是根节点对应的哈希值
 	Leafs        []*Node
 	hashStrategy func() hash.Hash
 }
@@ -43,9 +59,11 @@ type Node struct {
 //verifyNode walks down the tree until hitting a leaf, calculating the hash at each level
 //and returning the resulting hash of Node n.
 func (n *Node) verifyNode() ([]byte, error) {
+	//是叶子就直接计算他的haxi.
 	if n.leaf {
 		return n.C.CalculateHash()
 	}
+	//否则递归跑左右子树.
 	rightBytes, err := n.Right.verifyNode()
 	if err != nil {
 		return nil, err
@@ -57,13 +75,16 @@ func (n *Node) verifyNode() ([]byte, error) {
 	}
 
 	h := n.Tree.hashStrategy()
+	//h.Write 就是拼接
 	if _, err := h.Write(append(leftBytes, rightBytes...)); err != nil {
 		return nil, err
 	}
-
+// sum就是计算和的哈希值.
 	return h.Sum(nil), nil
 }
 
+
+//跟上面verify函数一样.
 //calculateNodeHash is a helper function that calculates the hash of the node.
 func (n *Node) calculateNodeHash() ([]byte, error) {
 	if n.leaf {
@@ -113,6 +134,8 @@ func NewTreeWithHashStrategy(cs []Content, hashStrategy func() hash.Hash) (*Merk
 
 // GetMerklePath: Get Merkle path and indexes(left leaf or right leaf)
 func (m *MerkleTree) GetMerklePath(content Content) ([][]byte, []int64, error) {
+
+	//返回叶子的到跟的路径.
 	for _, current := range m.Leafs {
 		ok, err := current.C.Equals(content)
 		if err != nil {
@@ -120,6 +143,9 @@ func (m *MerkleTree) GetMerklePath(content Content) ([][]byte, []int64, error) {
 		}
 
 		if ok {
+
+
+
 			currentParent := current.Parent
 			var merklePath [][]byte
 			var index []int64
@@ -135,6 +161,14 @@ func (m *MerkleTree) GetMerklePath(content Content) ([][]byte, []int64, error) {
 				currentParent = currentParent.Parent
 			}
 			return merklePath, index, nil
+
+
+
+
+
+
+
+
 		}
 	}
 	return nil, nil, nil
@@ -143,6 +177,9 @@ func (m *MerkleTree) GetMerklePath(content Content) ([][]byte, []int64, error) {
 //buildWithContent is a helper function that for a given set of Contents, generates a
 //corresponding tree and returns the root node, a list of leaf nodes, and a possible error.
 //Returns an error if cs contains no Contents.
+
+
+
 func buildWithContent(cs []Content, t *MerkleTree) (*Node, []*Node, error) {
 	if len(cs) == 0 {
 		return nil, nil, errors.New("error: cannot construct tree with no content")
@@ -161,6 +198,8 @@ func buildWithContent(cs []Content, t *MerkleTree) (*Node, []*Node, error) {
 			Tree: t,
 		})
 	}
+
+	//奇数时候等价于多放一个节点即可.
 	if len(leafs)%2 == 1 {
 		duplicate := &Node{
 			Hash: leafs[len(leafs)-1].Hash,
@@ -181,8 +220,13 @@ func buildWithContent(cs []Content, t *MerkleTree) (*Node, []*Node, error) {
 
 //buildIntermediate is a helper function that for a given list of leaf nodes, constructs
 //the intermediate and root levels of the tree. Returns the resulting root node of the tree.
+
+
+// 创建的最本质函数.
+
 func buildIntermediate(nl []*Node, t *MerkleTree) (*Node, error) {
 	var nodes []*Node
+
 	for i := 0; i < len(nl); i += 2 {
 		h := t.hashStrategy()
 		var left, right int = i, i + 1
